@@ -291,4 +291,26 @@ abstract final class Seed {
       checkOut: checkOut,
     );
   }
+
+  /// Data riil 18 karyawan dari buku catatan fisik konveksi owner.
+  static List<KonveksiRecord> konveksiRecords() => const [
+        KonveksiRecord(id: 'KV-01', name: 'Acep', days: 6.0, dailyRate: 116667, overtime: 40000, loanDeduction: 0, customBaseWage: 700000, department: 'Mandor / Pola', phone: '081234560011'),
+        KonveksiRecord(id: 'KV-02', name: 'Eka', days: 6.0, dailyRate: 70000, overtime: 40000, loanDeduction: 0, department: 'Produksi / Jahit', phone: '081234560012'),
+        KonveksiRecord(id: 'KV-03', name: 'Dian', days: 4.5, dailyRate: 86667, overtime: 10000, loanDeduction: 0, customBaseWage: 390000, department: 'Produksi / Jahit', phone: '081234560013'),
+        KonveksiRecord(id: 'KV-04', name: 'Ucup', days: 5.5, dailyRate: 83273, overtime: 40000, loanDeduction: 50000, remainingLoan: 250000, customBaseWage: 458000, department: 'Potong (Cutting)', phone: '081234560014'),
+        KonveksiRecord(id: 'KV-05', name: 'Kadal', days: 3.5, dailyRate: 60000, overtime: 0, loanDeduction: 0, department: 'Finishing & QC', phone: '081234560015'),
+        KonveksiRecord(id: 'KV-06', name: 'Faisal', days: 5.5, dailyRate: 60000, overtime: 40000, loanDeduction: 0, department: 'Produksi / Jahit', phone: '081234560016'),
+        KonveksiRecord(id: 'KV-07', name: 'Adit', days: 6.0, dailyRate: 60000, overtime: 40000, loanDeduction: 0, department: 'Produksi / Jahit', phone: '081234560017'),
+        KonveksiRecord(id: 'KV-08', name: 'Azahri', days: 5.5, dailyRate: 60000, overtime: 15000, loanDeduction: 0, department: 'Potong (Cutting)', phone: '081234560018'),
+        KonveksiRecord(id: 'KV-09', name: 'Aria', days: 6.0, dailyRate: 70000, overtime: 40000, loanDeduction: 0, department: 'Produksi / Jahit', phone: '081234560019'),
+        KonveksiRecord(id: 'KV-10', name: 'Reza', days: 5.0, dailyRate: 50000, overtime: 40000, loanDeduction: 0, department: 'Obras & Kancing', phone: '081234560020'),
+        KonveksiRecord(id: 'KV-11', name: 'Ridho', days: 6.0, dailyRate: 50000, overtime: 40000, loanDeduction: 0, department: 'Finishing & QC', phone: '081234560021'),
+        KonveksiRecord(id: 'KV-12', name: 'Maryam', days: 6.0, dailyRate: 70000, overtime: 40000, loanDeduction: 0, department: 'Produksi / Jahit', phone: '081234560022'),
+        KonveksiRecord(id: 'KV-13', name: 'Rina', days: 6.0, dailyRate: 70000, overtime: 40000, loanDeduction: 0, department: 'Produksi / Jahit', phone: '081234560023'),
+        KonveksiRecord(id: 'KV-14', name: 'Dini', days: 6.0, dailyRate: 60000, overtime: 40000, loanDeduction: 0, department: 'Produksi / Jahit', phone: '081234560024'),
+        KonveksiRecord(id: 'KV-15', name: 'Irma', days: 5.0, dailyRate: 60000, overtime: 10000, loanDeduction: 0, department: 'Finishing & QC', phone: '081234560025'),
+        KonveksiRecord(id: 'KV-16', name: 'Nengsih', days: 6.0, dailyRate: 60000, overtime: 40000, loanDeduction: 150000, remainingLoan: 350000, department: 'Produksi / Jahit', phone: '081234560026'),
+        KonveksiRecord(id: 'KV-17', name: 'Hayat', days: 6.0, dailyRate: 50000, overtime: 40000, loanDeduction: 150000, remainingLoan: 200000, department: 'Packing & Gudang', phone: '081234560027'),
+        KonveksiRecord(id: 'KV-18', name: 'Eli', days: 6.0, dailyRate: 50000, overtime: 40000, loanDeduction: 0, department: 'Obras & Kancing', phone: '081234560028'),
+      ];
 }

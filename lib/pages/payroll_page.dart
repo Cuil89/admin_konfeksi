@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../core/app_icons.dart';
 import '../core/format.dart';
@@ -32,6 +33,7 @@ class _PayrollPageState extends State<PayrollPage> {
   final Set<String> _selectedLoanIds = {};
 
   int _payrollViewTab = 0; // 0: Rekap Bulanan, 1: Sub Total Mingguan
+  int _weeklyModeSubTab = 0; // 0: Buku Catatan Konveksi (18 Karyawan), 1: Kompilasi Presensi Digital
   int _selectedWeek = 1;
   final Set<int> _approvedWeeks = {};
 
@@ -413,6 +415,598 @@ class _PayrollPageState extends State<PayrollPage> {
   // Sub Total Mingguan Section
   // ---------------------------------------------------------------------------
   Widget _buildWeeklySection(bool isMobile, bool isTablet) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Sub-Mode Switcher: Buku Catatan Konveksi vs Presensi Digital
+        Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF1F5F9),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.borderStrong),
+          ),
+          child: Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              InkWell(
+                onTap: () => setState(() => _weeklyModeSubTab = 0),
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: _weeklyModeSubTab == 0 ? Colors.white : Colors.transparent,
+                    borderRadius: BorderRadius.circular(8),
+                    boxShadow: _weeklyModeSubTab == 0
+                        ? [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 4)]
+                        : null,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(AppIcons.fileText, size: 15, color: Color(0xFF0F766E)),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Buku Catatan Konveksi (Format Kertas Buku Fisik)',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: _weeklyModeSubTab == 0 ? FontWeight.w700 : FontWeight.w500,
+                          color: _weeklyModeSubTab == 0 ? AppColors.textStrong : AppColors.textMuted,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFCCFBF1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          'Sesuai Catatan Riil',
+                          style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, color: Color(0xFF0F766E)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              InkWell(
+                onTap: () => setState(() => _weeklyModeSubTab = 1),
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: _weeklyModeSubTab == 1 ? Colors.white : Colors.transparent,
+                    borderRadius: BorderRadius.circular(8),
+                    boxShadow: _weeklyModeSubTab == 1
+                        ? [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 4)]
+                        : null,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(AppIcons.attendance, size: 15, color: AppColors.primary),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Kompilasi Presensi Digital (Minggu 1–5)',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: _weeklyModeSubTab == 1 ? FontWeight.w700 : FontWeight.w500,
+                          color: _weeklyModeSubTab == 1 ? AppColors.textStrong : AppColors.textMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 20),
+
+        if (_weeklyModeSubTab == 0)
+          _buildKonveksiNotebookSection(isMobile, isTablet)
+        else
+          _buildDigitalWeeklySection(isMobile, isTablet),
+      ],
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // 1. Buku Catatan Konveksi (Format Kertas Buku Fisik)
+  // ---------------------------------------------------------------------------
+  Widget _buildKonveksiNotebookSection(bool isMobile, bool isTablet) {
+    final konveksiList = widget.store.konveksiRecords;
+    final totalNet = widget.store.konveksiTotalNet;
+    final totalDays = widget.store.konveksiTotalDays;
+    final totalOvertime = widget.store.konveksiTotalOvertime;
+    final totalLoanDed = widget.store.konveksiTotalLoanDeduction;
+    final totalBaseWage = widget.store.konveksiTotalBase;
+    final totalRemainingLoan = widget.store.konveksiTotalRemainingLoan;
+
+    final crossCount = isMobile ? 1 : (isTablet ? 2 : 4);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Control Bar: Info & Quick Action Buttons
+        AppCard(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          child: Wrap(
+            spacing: 12,
+            runSpacing: 10,
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEF3C7),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFFFDE68A)),
+                    ),
+                    child: const Icon(AppIcons.fileText, color: Color(0xFF92400E), size: 18),
+                  ),
+                  const SizedBox(width: 10),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        'Buku Catatan Penggajian Mingguan Konveksi',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textStrong),
+                      ),
+                      Text(
+                        'Format persis buku tulis: Nama · Hari (bisa desimal 5.5 / 4.5) · Gajih · Lemburan · Kasbon · Amplop',
+                        style: AppText.tiny,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF0F766E), // teal-700
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    ),
+                    icon: const Icon(AppIcons.payroll, size: 16),
+                    label: const Text('Kalkulator Pecahan Uang Amplop', style: TextStyle(fontWeight: FontWeight.w700)),
+                    onPressed: () => _showCashDenominationsDialog(context),
+                  ),
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.text2,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    ),
+                    icon: const Icon(AppIcons.add, size: 16),
+                    label: const Text('Tambah Karyawan'),
+                    onPressed: () => _showAddKonveksiDialog(context),
+                  ),
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.amber700,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    ),
+                    icon: const Icon(AppIcons.adjust, size: 16),
+                    label: const Text('Reset ke 18 Karyawan'),
+                    onPressed: () {
+                      widget.store.resetKonveksiToPhoto();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Data buku konveksi direset ke 18 karyawan sesuai foto catatan.'),
+                          backgroundColor: AppColors.primary,
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 20),
+
+        // 4 Stat Cards
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final itemWidth = (constraints.maxWidth - ((crossCount - 1) * 16)) / crossCount;
+
+            return Wrap(
+              spacing: 16,
+              runSpacing: 16,
+              children: [
+                SizedBox(
+                  width: itemWidth,
+                  child: Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'TOTAL UANG AMPLOP (KASIR)',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white70),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          Fmt.rupiah(totalNet),
+                          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white),
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Uang tunai wajib siap di kasir Sabtu sore',
+                          style: TextStyle(fontSize: 11, color: Colors.white70),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  width: itemWidth,
+                  child: Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'TOTAL HARI KERJA TIM',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSubtle),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '${totalDays.toStringAsFixed(totalDays.truncateToDouble() == totalDays ? 0 : 1)} Hari',
+                          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.textStrong),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Dari ${konveksiList.length} orang pekerja konveksi',
+                          style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  width: itemWidth,
+                  child: Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'TOTAL LEMBURAN CAIR',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSubtle),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          Fmt.rupiah(totalOvertime),
+                          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.textStrong),
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Premi lembur mingguan karyawan',
+                          style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  width: itemWidth,
+                  child: Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEF2F2), // red-50
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0xFFFECACA)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'KASBON TERPOTONG MINGGU INI',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF991B1B)),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          Fmt.rupiah(totalLoanDed),
+                          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Color(0xFF991B1B)),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Sisa utang aktif tim: ${Fmt.rupiah(totalRemainingLoan)}',
+                          style: const TextStyle(fontSize: 11, color: Color(0xFFB91C1C), fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+
+        const SizedBox(height: 24),
+
+        // Interactive Notebook Table (Kertas Catatan)
+        AppCard(
+          padding: EdgeInsets.zero,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(18),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Tabel Rekap Penggajian Mingguan Konveksi', style: AppText.sectionTitle),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Rumus: Total Amplop = (Hari x Gaji Harian) + Lemburan - Kasbonan',
+                          style: AppText.tiny,
+                        ),
+                      ],
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.emerald50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.emerald200),
+                      ),
+                      child: Text(
+                        'Total ${konveksiList.length} Karyawan',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.primary700),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minWidth: 1080),
+                  child: DataTable(
+                    headingRowColor: const WidgetStatePropertyAll(Color(0xFFF8FAFC)),
+                    headingTextStyle: AppText.tableHead,
+                    dataRowMinHeight: 52,
+                    dataRowMaxHeight: 60,
+                    horizontalMargin: 18,
+                    columnSpacing: 18,
+                    columns: const [
+                      DataColumn(label: Text('NO')),
+                      DataColumn(label: Text('NAMA')),
+                      DataColumn(label: Text('HARI')),
+                      DataColumn(label: Text('GAJIH / HARI')),
+                      DataColumn(label: Text('TOTAL GAJIH')),
+                      DataColumn(label: Text('LEMBURAN')),
+                      DataColumn(label: Text('KASBONAN')),
+                      DataColumn(label: Text('SISA KASBON')),
+                      DataColumn(label: Text('TOTAL AMPLOP')),
+                      DataColumn(label: Text('AKSI')),
+                    ],
+                    rows: [
+                      ...konveksiList.asMap().entries.map((entry) {
+                        final idx = entry.key + 1;
+                        final kr = entry.value;
+                        final daysStr = kr.days.toStringAsFixed(kr.days.truncateToDouble() == kr.days ? 0 : 1);
+
+                        return DataRow(
+                          cells: [
+                            DataCell(Text('$idx', style: const TextStyle(color: AppColors.textSubtle, fontWeight: FontWeight.w600))),
+                            DataCell(
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  InitialsAvatar(initials: Fmt.initials(kr.name), size: 28),
+                                  const SizedBox(width: 8),
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(kr.name, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
+                                      Text(kr.department, style: const TextStyle(fontSize: 10.5, color: AppColors.textMuted)),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            // HARI with quick stepper buttons
+                            DataCell(
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(AppIcons.adjust, size: 13),
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
+                                    tooltip: 'Kurangi 0.5 hari',
+                                    onPressed: () {
+                                      if (kr.days > 0.5) {
+                                        widget.store.updateKonveksiRecord(kr.copyWith(days: kr.days - 0.5));
+                                      }
+                                    },
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF1F5F9),
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(color: AppColors.borderStrong),
+                                    ),
+                                    child: Text(
+                                      '$daysStr Hari',
+                                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: AppColors.textStrong),
+                                    ),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(AppIcons.add, size: 13),
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
+                                    tooltip: 'Tambah 0.5 hari',
+                                    onPressed: () {
+                                      if (kr.days < 7.0) {
+                                        widget.store.updateKonveksiRecord(kr.copyWith(days: kr.days + 0.5));
+                                      }
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                            // GAJIH / HARI
+                            DataCell(Text(Fmt.rupiah(kr.dailyRate), style: const TextStyle(fontSize: 12.5, color: AppColors.text2))),
+                            // TOTAL GAJIH
+                            DataCell(Text(Fmt.rupiah(kr.baseWage), style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: AppColors.textStrong))),
+                            // LEMBURAN
+                            DataCell(
+                              Text(
+                                kr.overtime > 0 ? Fmt.rupiah(kr.overtime) : '0',
+                                style: TextStyle(
+                                  fontWeight: kr.overtime > 0 ? FontWeight.w600 : FontWeight.w400,
+                                  color: kr.overtime > 0 ? AppColors.emerald700 : AppColors.textSubtle,
+                                  fontSize: 12.5,
+                                ),
+                              ),
+                            ),
+                            // KASBONAN
+                            DataCell(
+                              Text(
+                                kr.loanDeduction > 0 ? '-${Fmt.rupiah(kr.loanDeduction)}' : '-',
+                                style: TextStyle(
+                                  fontWeight: kr.loanDeduction > 0 ? FontWeight.w700 : FontWeight.w400,
+                                  color: kr.loanDeduction > 0 ? AppColors.rose600 : AppColors.textSubtle,
+                                  fontSize: 12.5,
+                                ),
+                              ),
+                            ),
+                            // SISA KASBON
+                            DataCell(
+                              kr.remainingLoan > 0
+                                  ? Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFFEF2F2),
+                                        borderRadius: BorderRadius.circular(4),
+                                        border: Border.all(color: const Color(0xFFFECACA), width: 0.8),
+                                      ),
+                                      child: Text(
+                                        Fmt.rupiah(kr.remainingLoan),
+                                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFFDC2626)),
+                                      ),
+                                    )
+                                  : const Text('-', style: TextStyle(color: AppColors.textSubtle)),
+                            ),
+                            // TOTAL AMPLOP
+                            DataCell(
+                              Text(
+                                Fmt.rupiah(kr.netWage),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 14,
+                                  color: AppColors.primary700,
+                                ),
+                              ),
+                            ),
+                            // AKSI
+                            DataCell(
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(AppIcons.support, size: 16),
+                                    color: const Color(0xFF16A34A),
+                                    tooltip: 'Kirim Slip WA',
+                                    onPressed: () => _showWhatsAppSlipDialog(context, kr),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(AppIcons.edit, size: 16),
+                                    color: AppColors.primary,
+                                    tooltip: 'Ubah Data',
+                                    onPressed: () => _showEditKonveksiDialog(context, kr),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(AppIcons.delete, size: 16),
+                                    color: AppColors.rose600,
+                                    tooltip: 'Hapus dari Buku',
+                                    onPressed: () => _showDeleteKonveksiDialog(context, kr),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        );
+                      }),
+                      // TOTAL FOOTER ROW
+                      DataRow(
+                        color: const WidgetStatePropertyAll(Color(0xFFF0FDF4)),
+                        cells: [
+                          const DataCell(Text('Σ', style: TextStyle(fontWeight: FontWeight.w800, color: AppColors.primary700))),
+                          const DataCell(Text('TOTAL KESELURUHAN', style: TextStyle(fontWeight: FontWeight.w800, color: AppColors.primary700, fontSize: 13))),
+                          DataCell(Text('${totalDays.toStringAsFixed(1)} Hari', style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.primary700))),
+                          const DataCell(Text('-')),
+                          DataCell(Text(Fmt.rupiah(totalBaseWage), style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.textStrong))),
+                          DataCell(Text(Fmt.rupiah(totalOvertime), style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.emerald700))),
+                          DataCell(Text(Fmt.rupiah(totalLoanDed), style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.rose600))),
+                          DataCell(Text(Fmt.rupiah(totalRemainingLoan), style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFFDC2626)))),
+                          DataCell(
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                Fmt.rupiah(totalNet),
+                                style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.white, fontSize: 13),
+                              ),
+                            ),
+                          ),
+                          const DataCell(Text('')),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // 2. Kompilasi Presensi Digital (Minggu 1–5 Fallback)
+  // ---------------------------------------------------------------------------
+  Widget _buildDigitalWeeklySection(bool isMobile, bool isTablet) {
     final weeklyLines = widget.store.weeklyPayrollLines(weekIndex: _selectedWeek);
     final totalWeeklyNet = weeklyLines.fold<int>(0, (s, l) => s + l.subtotalNet);
     final totalDailyWage = weeklyLines.fold<int>(0, (s, l) => s + l.dailyWageTotal);
@@ -767,6 +1361,489 @@ class _PayrollPageState extends State<PayrollPage> {
           ),
         ),
       ],
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Konveksi Dialogs: Cash Denominations, WhatsApp Slip, Add, Edit, Delete
+  // ---------------------------------------------------------------------------
+  void _showCashDenominationsDialog(BuildContext context) {
+    final amounts = widget.store.konveksiRecords.map((r) => r.netWage).toList();
+    final totalCash = widget.store.konveksiTotalNet;
+    final denominations = CashBreakdown.totalBreakdown(amounts);
+
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 580),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFCCFBF1),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(AppIcons.payroll, color: Color(0xFF0F766E), size: 22),
+                          ),
+                          const SizedBox(width: 12),
+                          const Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Kalkulator Pecahan Uang Amplop', style: AppText.sectionTitle),
+                              Text('Tukaran uang bank/ATM untuk gaji mingguan konveksi', style: AppText.tiny),
+                            ],
+                          ),
+                        ],
+                      ),
+                      IconButton(
+                        icon: const Icon(AppIcons.close, size: 20),
+                        onPressed: () => Navigator.of(context).pop(),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('TOTAL UANG TUNAI YANG PERLU DITARIK:', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)),
+                        Text(Fmt.rupiah(totalCash), style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Rincian Lembaran Uang Kertas:', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textStrong)),
+                  const SizedBox(height: 8),
+                  Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: AppColors.border),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Column(
+                      children: denominations.map((d) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(d.label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                              Text('${d.count} lembar', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AppColors.primary700)),
+                              Text(Fmt.rupiah(d.total), style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: AppColors.textStrong)),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      OutlinedButton.icon(
+                        icon: const Icon(AppIcons.fileText, size: 16),
+                        label: const Text('Salin untuk Teller Bank'),
+                        onPressed: () {
+                          final buffer = StringBuffer();
+                          buffer.writeln('RINCIAN TUKARAN UANG BANK - GAJI MINGGUAN KONVEKSI');
+                          buffer.writeln('Total: ${Fmt.rupiah(totalCash)}');
+                          buffer.writeln('----------------------------------------');
+                          for (final d in denominations) {
+                            if (d.count > 0) {
+                              buffer.writeln('${d.label.padRight(12)} : ${d.count} lembar = ${Fmt.rupiah(d.total)}');
+                            }
+                          }
+                          buffer.writeln('----------------------------------------');
+                          Clipboard.setData(ClipboardData(text: buffer.toString()));
+                          Navigator.of(context).pop();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Rincian tukaran bank berhasil disalin ke clipboard!'),
+                              backgroundColor: AppColors.primary,
+                            ),
+                          );
+                        },
+                      ),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('Tutup'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showWhatsAppSlipDialog(BuildContext context, KonveksiRecord kr) {
+    final text = '''
+*SLIP GAJI MINGGUAN - KONVEKSI*
+Nama: *${kr.name}*
+Divisi: ${kr.department}
+----------------------------------------
+• Hari Kerja    : ${kr.days} Hari (${Fmt.rupiah(kr.dailyRate)}/hari)
+• Gaji Kehadiran: ${Fmt.rupiah(kr.baseWage)}
+• Lemburan      : +${Fmt.rupiah(kr.overtime)}
+• Subtotal      : ${Fmt.rupiah(kr.grossWage)}
+${kr.loanDeduction > 0 ? '• Potongan Bon  : -${Fmt.rupiah(kr.loanDeduction)}\n  (Sisa Kasbon: ${Fmt.rupiah(kr.remainingLoan)})' : '• Potongan Bon  : Rp0'}
+----------------------------------------
+*TOTAL AMPLOP DITERIMA: ${Fmt.rupiah(kr.netWage)}*
+----------------------------------------
+_Silakan hitung uang dalam amplop. Terima kasih atas kerja kerasnya!_
+''';
+
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 440),
+          child: Padding(
+            padding: const EdgeInsets.all(22),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFDCFCE7),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(AppIcons.support, color: Color(0xFF16A34A), size: 20),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Kirim Slip WA: ${kr.name}', style: AppText.sectionTitle),
+                            Text('Nomor HP: ${kr.phone.isNotEmpty ? kr.phone : '(Belum diatur)'}', style: AppText.tiny),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Text(text, style: const TextStyle(fontSize: 12, height: 1.4, fontFamily: 'monospace')),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('Tutup'),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF16A34A), foregroundColor: Colors.white),
+                        icon: const Icon(AppIcons.check, size: 16),
+                        label: const Text('Salin Teks WA'),
+                        onPressed: () {
+                          Clipboard.setData(ClipboardData(text: text));
+                          Navigator.of(context).pop();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Pesan slip WhatsApp untuk ${kr.name} berhasil disalin!'),
+                              backgroundColor: const Color(0xFF16A34A),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showEditKonveksiDialog(BuildContext context, KonveksiRecord kr) {
+    final nameCtrl = TextEditingController(text: kr.name);
+    final daysCtrl = TextEditingController(text: kr.days.toString());
+    final rateCtrl = TextEditingController(text: kr.dailyRate.toString());
+    final overtimeCtrl = TextEditingController(text: kr.overtime.toString());
+    final loanCtrl = TextEditingController(text: kr.loanDeduction.toString());
+    final remLoanCtrl = TextEditingController(text: kr.remainingLoan.toString());
+    String selectedDept = kr.department;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Ubah Data: ${kr.name}'),
+        content: SizedBox(
+          width: 420,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameCtrl,
+                  decoration: const InputDecoration(labelText: 'Nama Karyawan'),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: daysCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: const InputDecoration(labelText: 'Hari Kerja (e.g. 5.5)'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextField(
+                        controller: rateCtrl,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(labelText: 'Tarif Harian (Rp)'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: overtimeCtrl,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(labelText: 'Lemburan (Rp)'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextField(
+                        controller: loanCtrl,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(labelText: 'Potong Bon (Rp)'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: remLoanCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Sisa Utang Kasbon (Rp)'),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: kDepartments.contains(selectedDept) ? selectedDept : kDepartments.first,
+                  decoration: const InputDecoration(labelText: 'Divisi / Bagian'),
+                  items: kDepartments.map((d) => DropdownMenuItem(value: d, child: Text(d))).toList(),
+                  onChanged: (val) {
+                    if (val != null) selectedDept = val;
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
+            onPressed: () {
+              final newDays = double.tryParse(daysCtrl.text) ?? kr.days;
+              final newRate = int.tryParse(rateCtrl.text) ?? kr.dailyRate;
+              final newOvertime = int.tryParse(overtimeCtrl.text) ?? kr.overtime;
+              final newLoan = int.tryParse(loanCtrl.text) ?? kr.loanDeduction;
+              final newRemLoan = int.tryParse(remLoanCtrl.text) ?? kr.remainingLoan;
+
+              widget.store.updateKonveksiRecord(kr.copyWith(
+                name: nameCtrl.text.trim(),
+                days: newDays,
+                dailyRate: newRate,
+                overtime: newOvertime,
+                loanDeduction: newLoan,
+                remainingLoan: newRemLoan,
+                department: selectedDept,
+              ));
+              Navigator.of(context).pop();
+            },
+            child: const Text('Simpan Perubahan'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAddKonveksiDialog(BuildContext context) {
+    final nameCtrl = TextEditingController();
+    final daysCtrl = TextEditingController(text: '6.0');
+    final rateCtrl = TextEditingController(text: '60000');
+    final overtimeCtrl = TextEditingController(text: '40000');
+    final loanCtrl = TextEditingController(text: '0');
+    final remLoanCtrl = TextEditingController(text: '0');
+    String selectedDept = 'Produksi / Jahit';
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Tambah Karyawan ke Buku Konveksi'),
+        content: SizedBox(
+          width: 420,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameCtrl,
+                  decoration: const InputDecoration(labelText: 'Nama Karyawan'),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: daysCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: const InputDecoration(labelText: 'Hari Kerja (e.g. 5.5)'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextField(
+                        controller: rateCtrl,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(labelText: 'Tarif Harian (Rp)'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: overtimeCtrl,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(labelText: 'Lemburan (Rp)'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextField(
+                        controller: loanCtrl,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(labelText: 'Potong Bon (Rp)'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: remLoanCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Sisa Utang Kasbon (Rp)'),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: selectedDept,
+                  decoration: const InputDecoration(labelText: 'Divisi / Bagian'),
+                  items: kDepartments.map((d) => DropdownMenuItem(value: d, child: Text(d))).toList(),
+                  onChanged: (val) {
+                    if (val != null) selectedDept = val;
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
+            onPressed: () {
+              if (nameCtrl.text.trim().isEmpty) return;
+              final newDays = double.tryParse(daysCtrl.text) ?? 6.0;
+              final newRate = int.tryParse(rateCtrl.text) ?? 60000;
+              final newOvertime = int.tryParse(overtimeCtrl.text) ?? 0;
+              final newLoan = int.tryParse(loanCtrl.text) ?? 0;
+              final newRemLoan = int.tryParse(remLoanCtrl.text) ?? 0;
+
+              widget.store.addKonveksiRecord(
+                name: nameCtrl.text.trim(),
+                days: newDays,
+                dailyRate: newRate,
+                overtime: newOvertime,
+                loanDeduction: newLoan,
+                remainingLoan: newRemLoan,
+                department: selectedDept,
+              );
+              Navigator.of(context).pop();
+            },
+            child: const Text('Tambahkan'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeleteKonveksiDialog(BuildContext context, KonveksiRecord kr) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Hapus ${kr.name}?'),
+        content: Text('Apakah Anda yakin ingin menghapus data ${kr.name} dari catatan mingguan konveksi?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.rose600, foregroundColor: Colors.white),
+            onPressed: () {
+              widget.store.deleteKonveksiRecord(kr.id);
+              Navigator.of(context).pop();
+            },
+            child: const Text('Hapus'),
+          ),
+        ],
+      ),
     );
   }
 

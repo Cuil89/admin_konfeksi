@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import '../core/format.dart';
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -523,4 +524,157 @@ class AppSettings {
         autoLockMinutes: _int(j['autoLockMinutes'], 5).clamp(1, 60),
         secureScreen: j['secureScreen'] != false,
       );
+}
+
+// ---------------------------------------------------------------------------
+// Konveksi Weekly Notebook Entry & Cash Denominations
+// ---------------------------------------------------------------------------
+
+@immutable
+class KonveksiRecord {
+  const KonveksiRecord({
+    required this.id,
+    required this.name,
+    required this.days,
+    required this.dailyRate,
+    required this.overtime,
+    required this.loanDeduction,
+    this.remainingLoan = 0,
+    this.department = 'Produksi / Jahit',
+    this.phone = '',
+    this.notes = '',
+    this.customBaseWage,
+  });
+
+  final String id;
+  final String name;
+
+  /// Jumlah hari kerja (bisa pecahan, misal 4.5, 5.5, 6.0, 3.5).
+  final double days;
+
+  /// Tarif gaji per hari.
+  final int dailyRate;
+
+  /// Uang lembur mingguan.
+  final int overtime;
+
+  /// Potongan kasbon minggu ini.
+  final int loanDeduction;
+
+  /// Sisa utang kasbon setelah dipotong.
+  final int remainingLoan;
+
+  final String department;
+  final String phone;
+  final String notes;
+
+  /// Optional nilai pasti dari buku catatan (untuk karyawan borongan/lump-sum).
+  final int? customBaseWage;
+
+  /// Gajih Pokok Mingguan = Hari x Tarif Harian (atau customBaseWage jika ada).
+  int get baseWage => customBaseWage ?? (days * dailyRate).round();
+
+  /// Subtotal Kotor = Gajih + Lemburan
+  int get grossWage => baseWage + overtime;
+
+  /// Total Bersih Amplop = Subtotal Kotor - Kasbonan
+  int get netWage => grossWage - loanDeduction;
+
+  KonveksiRecord copyWith({
+    String? name,
+    double? days,
+    int? dailyRate,
+    int? overtime,
+    int? loanDeduction,
+    int? remainingLoan,
+    String? department,
+    String? phone,
+    String? notes,
+    int? customBaseWage,
+    bool clearCustomBaseWage = false,
+  }) =>
+      KonveksiRecord(
+        id: id,
+        name: name ?? this.name,
+        days: days ?? this.days,
+        dailyRate: dailyRate ?? this.dailyRate,
+        overtime: overtime ?? this.overtime,
+        loanDeduction: loanDeduction ?? this.loanDeduction,
+        remainingLoan: remainingLoan ?? this.remainingLoan,
+        department: department ?? this.department,
+        phone: phone ?? this.phone,
+        notes: notes ?? this.notes,
+        customBaseWage: clearCustomBaseWage ? null : (customBaseWage ?? (days != null || dailyRate != null ? null : this.customBaseWage)),
+      );
+
+  Map<String, Object?> toJson() => {
+        'id': id,
+        'name': name,
+        'days': days,
+        'dailyRate': dailyRate,
+        'overtime': overtime,
+        'loanDeduction': loanDeduction,
+        'remainingLoan': remainingLoan,
+        'department': department,
+        'phone': phone,
+        'notes': notes,
+        if (customBaseWage != null) 'customBaseWage': customBaseWage,
+      };
+
+  factory KonveksiRecord.fromJson(Map<String, Object?> j) => KonveksiRecord(
+        id: _str(j['id']),
+        name: _str(j['name']),
+        days: (j['days'] is num) ? (j['days'] as num).toDouble() : 6.0,
+        dailyRate: _int(j['dailyRate']),
+        overtime: _int(j['overtime']),
+        loanDeduction: _int(j['loanDeduction']),
+        remainingLoan: _int(j['remainingLoan']),
+        department: _str(j['department'], 'Produksi / Jahit'),
+        phone: _str(j['phone']),
+        notes: _str(j['notes']),
+        customBaseWage: j['customBaseWage'] is int ? j['customBaseWage'] as int : null,
+      );
+}
+
+class CashDenomination {
+  const CashDenomination({
+    required this.nominal,
+    required this.count,
+  });
+
+  final int nominal;
+  final int count;
+
+  int get total => nominal * count;
+  String get label => Fmt.rupiah(nominal);
+}
+
+abstract final class CashBreakdown {
+  static const List<int> kBanknotes = [100000, 50000, 20000, 10000, 5000, 2000, 1000];
+
+  static Map<int, int> breakdownFor(int amount) {
+    var rem = amount;
+    final map = <int, int>{};
+    for (final note in kBanknotes) {
+      if (rem >= note) {
+        final count = rem ~/ note;
+        map[note] = count;
+        rem %= note;
+      } else {
+        map[note] = 0;
+      }
+    }
+    return map;
+  }
+
+  static List<CashDenomination> totalBreakdown(Iterable<int> amounts) {
+    final totals = <int, int>{for (final n in kBanknotes) n: 0};
+    for (final amt in amounts) {
+      final perPerson = breakdownFor(amt);
+      for (final entry in perPerson.entries) {
+        totals[entry.key] = (totals[entry.key] ?? 0) + entry.value;
+      }
+    }
+    return kBanknotes.map((n) => CashDenomination(nominal: n, count: totals[n] ?? 0)).toList();
+  }
 }

@@ -76,6 +76,7 @@ class AppStore extends ChangeNotifier {
   List<AttendanceRecord> _attendance = [];
   List<Reimbursement> _reimbursements = [];
   List<AuditEntry> _audit = [];
+  List<KonveksiRecord> _konveksiRecords = List.of(Seed.konveksiRecords());
   AppSettings _settings = const AppSettings();
   int _periodYear = Seed.periodYear;
   int _periodMonth = Seed.periodMonth;
@@ -88,10 +89,21 @@ class AppStore extends ChangeNotifier {
   List<Loan> get loans => List.unmodifiable(_loans);
   List<Reimbursement> get reimbursements => List.unmodifiable(_reimbursements);
   List<AuditEntry> get audit => List.unmodifiable(_audit);
+  List<KonveksiRecord> get konveksiRecords => List.unmodifiable(_konveksiRecords);
   AppSettings get settings => _settings;
   DateTime get lastUpdated => _lastUpdated;
   int get periodYear => _periodYear;
   int get periodMonth => _periodMonth;
+
+  int get konveksiTotalNet => _konveksiRecords.fold(0, (s, r) => s + r.netWage);
+  int get konveksiTotalGross => _konveksiRecords.fold(0, (s, r) => s + r.grossWage);
+  int get konveksiTotalBase => _konveksiRecords.fold(0, (s, r) => s + r.baseWage);
+  int get konveksiTotalOvertime => _konveksiRecords.fold(0, (s, r) => s + r.overtime);
+  int get konveksiTotalLoanDeduction => _konveksiRecords.fold(0, (s, r) => s + r.loanDeduction);
+  int get konveksiTotalRemainingLoan => _konveksiRecords.fold(0, (s, r) => s + r.remainingLoan);
+  double get konveksiTotalDays => _konveksiRecords.fold(0.0, (s, r) => s + r.days);
+  List<CashDenomination> get konveksiCashDenominations =>
+      CashBreakdown.totalBreakdown(_konveksiRecords.map((r) => r.netWage));
 
   String _currentRole = 'Pemilik';
   String get currentRole => _currentRole;
@@ -286,6 +298,7 @@ class AppStore extends ChangeNotifier {
     _loans = Seed.loans();
     _reimbursements = Seed.reimbursements();
     _attendance = Seed.attendance(_employees, now);
+    _konveksiRecords = List.of(Seed.konveksiRecords());
     _settings = const AppSettings();
     _periodYear = Seed.periodYear;
     _periodMonth = Seed.periodMonth;
@@ -320,6 +333,8 @@ class AppStore extends ChangeNotifier {
     _attendance = list('attendance', AttendanceRecord.fromJson);
     _reimbursements = list('reimbursements', Reimbursement.fromJson);
     _audit = list('audit', AuditEntry.fromJson);
+    final konveksi = list('konveksi', KonveksiRecord.fromJson);
+    _konveksiRecords = konveksi.isNotEmpty ? konveksi : List.of(Seed.konveksiRecords());
     final s = m['settings'];
     _settings = s is Map
         ? AppSettings.fromJson(s.cast<String, Object?>())
@@ -342,6 +357,7 @@ class AppStore extends ChangeNotifier {
         'attendance': _attendance.map((e) => e.toJson()).toList(),
         'reimbursements': _reimbursements.map((e) => e.toJson()).toList(),
         'audit': _audit.map((e) => e.toJson()).toList(),
+        'konveksi': _konveksiRecords.map((k) => k.toJson()).toList(),
       };
 
   void _scheduleSave() {
@@ -891,6 +907,58 @@ class AppStore extends ChangeNotifier {
   }
 
   void logSecurityEvent(String action, String detail) => _commit(action, detail);
+
+  // -------------------------------------------------------- konveksi notebook
+  void updateKonveksiRecord(KonveksiRecord record) {
+    final i = _konveksiRecords.indexWhere((r) => r.id == record.id);
+    if (i >= 0) {
+      _konveksiRecords[i] = record;
+      _commit('Catatan konveksi diubah', '${record.name}: ${Fmt.rupiah(record.netWage)}');
+    }
+  }
+
+  String addKonveksiRecord({
+    required String name,
+    required double days,
+    required int dailyRate,
+    int overtime = 40000,
+    int loanDeduction = 0,
+    int remainingLoan = 0,
+    String department = 'Produksi / Jahit',
+    String phone = '',
+    String notes = '',
+  }) {
+    final id = _nextId('KV', _konveksiRecords.map((r) => r.id));
+    final rec = KonveksiRecord(
+      id: id,
+      name: sanitize(name),
+      days: days,
+      dailyRate: dailyRate,
+      overtime: overtime,
+      loanDeduction: loanDeduction,
+      remainingLoan: remainingLoan,
+      department: department,
+      phone: phone,
+      notes: sanitize(notes),
+    );
+    _konveksiRecords.add(rec);
+    _commit('Karyawan konveksi ditambah', '${rec.name} (${rec.id})');
+    return id;
+  }
+
+  void deleteKonveksiRecord(String id) {
+    final i = _konveksiRecords.indexWhere((r) => r.id == id);
+    if (i >= 0) {
+      final name = _konveksiRecords[i].name;
+      _konveksiRecords.removeAt(i);
+      _commit('Karyawan konveksi dihapus', name);
+    }
+  }
+
+  void resetKonveksiToPhoto() {
+    _konveksiRecords = List.of(Seed.konveksiRecords());
+    _commit('Buku konveksi direset', '18 data karyawan dipulihkan sesuai foto catatan');
+  }
 
   Future<void> resetDemo() async {
     _seed(DateTime.now());

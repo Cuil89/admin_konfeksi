@@ -289,4 +289,108 @@ void main() {
       expect(await auth.verifyPin('582914'), isFalse);
     });
   });
+
+  group('Konveksi Notebook & Cash Denomination Tests', () {
+    late MemoryVault vault;
+    late AppStore store;
+
+    setUp(() async {
+      vault = MemoryVault();
+      store = AppStore(vault);
+      await store.load();
+    });
+
+    tearDown(() async {
+      await store.flush();
+    });
+
+    test('Photo ledger 18 workers data match exact financial totals', () {
+      final records = store.konveksiRecords;
+      expect(records.length, 18);
+
+      // Verify exact totals matching handwritten photo
+      expect(store.konveksiTotalDays, 100.5);
+      expect(store.konveksiTotalOvertime, 595000);
+      expect(store.konveksiTotalLoanDeduction, 350000);
+      expect(store.konveksiTotalNet, 6873000);
+
+      // Spot check workers
+      final acep = records.firstWhere((r) => r.name == 'Acep');
+      expect(acep.days, 6.0);
+      expect(acep.baseWage, 700000);
+      expect(acep.overtime, 40000);
+      expect(acep.loanDeduction, 0);
+      expect(acep.netWage, 740000);
+
+      final dian = records.firstWhere((r) => r.name == 'Dian');
+      expect(dian.days, 4.5);
+      expect(dian.baseWage, 390000);
+      expect(dian.overtime, 10000);
+      expect(dian.netWage, 400000);
+
+      final ucup = records.firstWhere((r) => r.name == 'Ucup');
+      expect(ucup.days, 5.5);
+      expect(ucup.baseWage, 458000);
+      expect(ucup.overtime, 40000);
+      expect(ucup.loanDeduction, 50000);
+      expect(ucup.netWage, 448000);
+
+      final nengsih = records.firstWhere((r) => r.name == 'Nengsih');
+      expect(nengsih.days, 6.0);
+      expect(nengsih.baseWage, 360000);
+      expect(nengsih.overtime, 40000);
+      expect(nengsih.loanDeduction, 150000);
+      expect(nengsih.netWage, 250000);
+    });
+
+    test('Cash denominations calculator breaks down net cash perfectly for bank tellers', () {
+      final denoms = store.konveksiCashDenominations;
+      final sumDenoms = denoms.fold<int>(0, (sum, d) => sum + d.total);
+      expect(sumDenoms, store.konveksiTotalNet);
+      expect(sumDenoms, 6873000);
+
+      // Verify no invalid negative or zero bank notes in breakdown list
+      for (final d in denoms) {
+        expect(d.nominal, greaterThan(0));
+        expect(d.count, greaterThanOrEqualTo(0));
+        expect(d.total, d.nominal * d.count);
+      }
+    });
+
+    test('Konveksi record CRUD and day steppers work seamlessly', () {
+      final initialCount = store.konveksiRecords.length;
+      final ucup = store.konveksiRecords.firstWhere((r) => r.name == 'Ucup');
+
+      // Update days (e.g. +0.5 days stepper)
+      store.updateKonveksiRecord(ucup.copyWith(days: 6.0));
+      final updatedUcup = store.konveksiRecords.firstWhere((r) => r.id == ucup.id);
+      expect(updatedUcup.days, 6.0);
+
+      // Add new worker
+      final newId = store.addKonveksiRecord(
+        name: 'Budi Santoso',
+        days: 5.5,
+        dailyRate: 60000,
+        overtime: 30000,
+        loanDeduction: 0,
+        remainingLoan: 0,
+        department: 'Finishing / QC',
+      );
+      expect(store.konveksiRecords.length, initialCount + 1);
+      final budi = store.konveksiRecords.firstWhere((r) => r.id == newId);
+      expect(budi.name, 'Budi Santoso');
+      expect(budi.baseWage, 330000); // 5.5 * 60,000 = 330,000
+      expect(budi.netWage, 360000); // 330,000 + 30,000
+
+      // Delete worker
+      store.deleteKonveksiRecord(newId);
+      expect(store.konveksiRecords.length, initialCount);
+
+      // Reset to original photo
+      store.resetKonveksiToPhoto();
+      expect(store.konveksiRecords.length, 18);
+      expect(store.konveksiTotalNet, 6873000);
+    });
+  });
 }
+
