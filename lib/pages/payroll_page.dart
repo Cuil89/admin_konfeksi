@@ -31,6 +31,10 @@ class _PayrollPageState extends State<PayrollPage> {
   final Set<String> _selectedPayrollIds = {};
   final Set<String> _selectedLoanIds = {};
 
+  int _payrollViewTab = 0; // 0: Rekap Bulanan, 1: Sub Total Mingguan
+  int _selectedWeek = 1;
+  final Set<int> _approvedWeeks = {};
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -80,16 +84,26 @@ class _PayrollPageState extends State<PayrollPage> {
                       _buildPeriodBar(isMobile),
                       const SizedBox(height: 20),
 
-                      // 4 Stat Cards
-                      _buildStatCards(totals, isMobile, isTablet),
+                      // Mode Switcher: Rekap Bulanan vs Sub Total Mingguan
+                      _buildViewModeTabs(isMobile),
                       const SizedBox(height: 20),
 
-                      // 2-Column Component Summary & Payment Status
-                      _buildTwoColumnSummary(totals, lines, isMobile),
-                      const SizedBox(height: 28),
+                      if (_payrollViewTab == 0) ...[
+                        // 4 Stat Cards
+                        _buildStatCards(totals, isMobile, isTablet),
+                        const SizedBox(height: 20),
 
-                      // Table: Payroll Karyawan
-                      _buildPayrollTable(filteredLines, totals, isMobile),
+                        // 2-Column Component Summary & Payment Status
+                        _buildTwoColumnSummary(totals, lines, isMobile),
+                        const SizedBox(height: 28),
+
+                        // Table: Payroll Karyawan
+                        _buildPayrollTable(filteredLines, totals, isMobile),
+                      ] else ...[
+                        // Weekly Subtotal & Daily Wage Table
+                        _buildWeeklySection(isMobile, isTablet),
+                      ],
+
                       const SizedBox(height: 32),
 
                       // Table: Bon dan Hutang Karyawan
@@ -254,6 +268,600 @@ class _PayrollPageState extends State<PayrollPage> {
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // View Mode Tabs: Rekap Bulanan vs Sub Total Mingguan (Revisi Pemilik)
+  // ---------------------------------------------------------------------------
+  Widget _buildViewModeTabs(bool isMobile) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: AppColors.slate100,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.borderStrong),
+      ),
+      child: isMobile
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _modeTabButton(
+                  title: 'Rekap Bulanan',
+                  subtitle: 'Kompilasi gaji bulanan & komponen tetap',
+                  isSelected: _payrollViewTab == 0,
+                  onTap: () => setState(() => _payrollViewTab = 0),
+                  isMobile: true,
+                ),
+                const SizedBox(height: 4),
+                _modeTabButton(
+                  title: 'Sub Total Mingguan',
+                  subtitle: 'Absensi harian x hadir per minggu',
+                  isSelected: _payrollViewTab == 1,
+                  isHighlight: true,
+                  onTap: () => setState(() => _payrollViewTab = 1),
+                  isMobile: true,
+                ),
+              ],
+            )
+          : Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                _modeTabButton(
+                  title: 'Rekap Bulanan (Standar)',
+                  subtitle: 'Kompilasi gaji bulanan & komponen tetap',
+                  isSelected: _payrollViewTab == 0,
+                  onTap: () => setState(() => _payrollViewTab = 0),
+                  isMobile: false,
+                ),
+                _modeTabButton(
+                  title: 'Sub Total Mingguan & Gaji Harian',
+                  subtitle: 'Kalkulasi absensi per hari x hadir per minggu',
+                  isSelected: _payrollViewTab == 1,
+                  isHighlight: true,
+                  onTap: () => setState(() => _payrollViewTab = 1),
+                  isMobile: false,
+                ),
+              ],
+            ),
+    );
+  }
+
+  Widget _modeTabButton({
+    required String title,
+    required String subtitle,
+    required bool isSelected,
+    required VoidCallback onTap,
+    bool isHighlight = false,
+    bool isMobile = false,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.white : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 4,
+                    offset: const Offset(0, 1),
+                  ),
+                ]
+              : null,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 6,
+              runSpacing: 2,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                    color: isSelected ? AppColors.textStrong : AppColors.textMuted,
+                  ),
+                ),
+                if (isHighlight)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEF3C7),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Text(
+                      'Revisi Pemilik',
+                      style: TextStyle(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF92400E),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 2),
+            Text(
+              subtitle,
+              style: TextStyle(
+                fontSize: 10.5,
+                color: isSelected ? AppColors.text2 : AppColors.textSubtle,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Sub Total Mingguan Section
+  // ---------------------------------------------------------------------------
+  Widget _buildWeeklySection(bool isMobile, bool isTablet) {
+    final weeklyLines = widget.store.weeklyPayrollLines(weekIndex: _selectedWeek);
+    final totalWeeklyNet = weeklyLines.fold<int>(0, (s, l) => s + l.subtotalNet);
+    final totalDailyWage = weeklyLines.fold<int>(0, (s, l) => s + l.dailyWageTotal);
+    final totalDaysPresent = weeklyLines.fold<int>(0, (s, l) => s + l.daysPresent);
+    final isApproved = _approvedWeeks.contains(_selectedWeek);
+
+    final crossCount = isMobile ? 1 : (isTablet ? 2 : 4);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Week Selector Pills
+        AppCard(
+          padding: const EdgeInsets.all(14),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              const Text(
+                'Pilih Minggu:',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textStrong),
+              ),
+              const SizedBox(width: 4),
+              for (int w = 1; w <= 5; w++)
+                ChoiceChip(
+                  label: Text(_weekLabel(w)),
+                  selected: _selectedWeek == w,
+                  selectedColor: AppColors.primary,
+                  labelStyle: TextStyle(
+                    color: _selectedWeek == w ? Colors.white : AppColors.textStrong,
+                    fontWeight: _selectedWeek == w ? FontWeight.w700 : FontWeight.w500,
+                    fontSize: 12,
+                  ),
+                  onSelected: (val) {
+                    if (val) setState(() => _selectedWeek = w);
+                  },
+                ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 20),
+
+        // 4 Weekly Stat Cards
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final itemWidth = (constraints.maxWidth - ((crossCount - 1) * 16)) / crossCount;
+
+            return Wrap(
+              spacing: 16,
+              runSpacing: 16,
+              children: [
+                SizedBox(
+                  width: itemWidth,
+                  child: Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'SUB TOTAL GAJI MINGGU INI',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white70),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          Fmt.rupiah(totalWeeklyNet),
+                          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Total cair periode Minggu $_selectedWeek',
+                          style: const TextStyle(fontSize: 11, color: Colors.white70),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  width: itemWidth,
+                  child: Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'UPAH ABSENSI HARIAN',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSubtle),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          Fmt.rupiah(totalDailyWage),
+                          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.textStrong),
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Berdasarkan presensi harian riil',
+                          style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  width: itemWidth,
+                  child: Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'TOTAL KEHADIRAN TIM',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSubtle),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '$totalDaysPresent hari kerja',
+                          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.textStrong),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Dari ${weeklyLines.length} karyawan aktif',
+                          style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  width: itemWidth,
+                  child: Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: isApproved ? const Color(0xFFF0FDF4) : const Color(0xFFFEF3C7),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: isApproved ? const Color(0xFF86EFAC) : const Color(0xFFFDE68A),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'OTORISASI PEMILIK',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: isApproved ? const Color(0xFF166534) : const Color(0xFF92400E),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          isApproved ? 'Disetujui Pemilik' : 'Menunggu Persetujuan',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: isApproved ? const Color(0xFF166534) : const Color(0xFF92400E),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: isApproved ? const Color(0xFF166534) : const Color(0xFFB45309),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                if (isApproved) {
+                                  _approvedWeeks.remove(_selectedWeek);
+                                } else {
+                                  _approvedWeeks.add(_selectedWeek);
+                                }
+                              });
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    isApproved
+                                        ? 'Persetujuan Minggu $_selectedWeek dibatalkan.'
+                                        : 'Sub Total Gaji Minggu $_selectedWeek telah DISAHKAN oleh Pemilik!',
+                                  ),
+                                  backgroundColor: isApproved ? AppColors.textStrong : AppColors.primary,
+                                ),
+                              );
+                            },
+                            child: Text(isApproved ? 'Batalkan Otorisasi' : 'Sahkan Sub Total Ini'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+
+        const SizedBox(height: 24),
+
+        // Weekly Table
+        AppCard(
+          padding: EdgeInsets.zero,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Rincian Sub Total Gaji Mingguan (Minggu $_selectedWeek)',
+                          style: AppText.sectionTitle,
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Formula: (Kehadiran x Gaji/Hari) + (Tunjangan / 4) - (Potongan Kasbon / 4)',
+                          style: AppText.tiny,
+                        ),
+                      ],
+                    ),
+                    StatusBadge(
+                      label: isApproved ? 'Sudah Disahkan Pemilik' : 'Draft / Siap Dicek',
+                      textColor: isApproved ? AppColors.primary700 : AppColors.amber700,
+                      backgroundColor: isApproved ? AppColors.emerald50 : AppColors.amber50,
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minWidth: 1050),
+                  child: DataTable(
+                    headingRowColor: const WidgetStatePropertyAll(AppColors.tableHead),
+                    headingTextStyle: AppText.tableHead,
+                    dataRowMinHeight: 56,
+                    dataRowMaxHeight: 64,
+                    horizontalMargin: 20,
+                    columnSpacing: 24,
+                    columns: const [
+                      DataColumn(label: Text('KARYAWAN')),
+                      DataColumn(label: Text('GAJI ABSENSI / HARI')),
+                      DataColumn(label: Text('HARI HADIR')),
+                      DataColumn(label: Text('TOTAL UPAH HARIAN')),
+                      DataColumn(label: Text('TUNJANGAN')),
+                      DataColumn(label: Text('POTONGAN KASBON')),
+                      DataColumn(label: Text('SUB TOTAL BERSIH')),
+                      DataColumn(label: Text('AKSI')),
+                    ],
+                    rows: weeklyLines.map((wl) {
+                      return DataRow(
+                        cells: [
+                          DataCell(
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                InitialsAvatar(initials: Fmt.initials(wl.employee.name), size: 32),
+                                const SizedBox(width: 10),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(wl.employee.name, style: AppText.bodyStrong),
+                                    Text('${wl.employee.id} · ${wl.employee.department}', style: AppText.tiny),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          DataCell(
+                            Text(
+                              Fmt.rupiah(wl.dailyRate),
+                              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                            ),
+                          ),
+                          DataCell(
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: AppColors.emerald50,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                '${wl.daysPresent} Hari',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.primary700,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ),
+                          DataCell(Text(Fmt.rupiah(wl.dailyWageTotal), style: AppText.money)),
+                          DataCell(Text(Fmt.rupiah(wl.weeklyAllowance), style: AppText.body)),
+                          DataCell(
+                            Text(
+                              wl.weeklyLoanDeduction > 0 ? '-${Fmt.rupiah(wl.weeklyLoanDeduction)}' : 'Rp0',
+                              style: TextStyle(
+                                color: wl.weeklyLoanDeduction > 0 ? AppColors.rose600 : AppColors.textMuted,
+                                fontWeight: wl.weeklyLoanDeduction > 0 ? FontWeight.w600 : FontWeight.w400,
+                              ),
+                            ),
+                          ),
+                          DataCell(
+                            Text(
+                              Fmt.rupiah(wl.subtotalNet),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 14,
+                                color: AppColors.primary700,
+                              ),
+                            ),
+                          ),
+                          DataCell(
+                            OutlinedButton(
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                minimumSize: Size.zero,
+                              ),
+                              onPressed: () => _showWeeklyBreakdownDialog(context, wl),
+                              child: const Text('Rincian', style: TextStyle(fontSize: 11)),
+                            ),
+                          ),
+                        ],
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _weekLabel(int w) {
+    switch (w) {
+      case 1:
+        return 'Minggu 1 (Tgl 1–7)';
+      case 2:
+        return 'Minggu 2 (Tgl 8–14)';
+      case 3:
+        return 'Minggu 3 (Tgl 15–21)';
+      case 4:
+        return 'Minggu 4 (Tgl 22–28)';
+      case 5:
+      default:
+        return 'Minggu 5 (Tgl 29–31)';
+    }
+  }
+
+  void _showWeeklyBreakdownDialog(BuildContext context, WeeklyPayrollLine wl) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 460),
+          child: Padding(
+            padding: const EdgeInsets.all(22),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    InitialsAvatar(initials: Fmt.initials(wl.employee.name), size: 40),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(wl.employee.name, style: AppText.sectionTitle),
+                          Text('Slip Sub Total Minggu ke-${wl.weekNumber}', style: AppText.small),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                const Divider(),
+                const SizedBox(height: 10),
+                _modalRow('Gaji Absensi Per Hari', Fmt.rupiah(wl.dailyRate)),
+                _modalRow('Kehadiran Minggu Ini', '${wl.daysPresent} Hari Kerja'),
+                _modalRow('Total Upah Harian', Fmt.rupiah(wl.dailyWageTotal), isBold: true),
+                _modalRow('Tunjangan Mingguan (1/4)', Fmt.rupiah(wl.weeklyAllowance)),
+                _modalRow('Potongan Kasbon Mingguan', wl.weeklyLoanDeduction > 0 ? '-${Fmt.rupiah(wl.weeklyLoanDeduction)}' : 'Rp0', isMinus: true),
+                const SizedBox(height: 8),
+                const Divider(),
+                const SizedBox(height: 8),
+                _modalRow(
+                  'Sub Total Gaji Bersih',
+                  Fmt.rupiah(wl.subtotalNet),
+                  isBold: true,
+                  color: AppColors.primary700,
+                  fontSize: 16,
+                ),
+                const SizedBox(height: 20),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Tutup'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _modalRow(String label, String value, {bool isBold = false, bool isMinus = false, Color? color, double fontSize = 13}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 13, color: AppColors.text2)),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: fontSize,
+              fontWeight: isBold ? FontWeight.w700 : FontWeight.w500,
+              color: color ?? (isMinus ? AppColors.rose600 : AppColors.textStrong),
+            ),
           ),
         ],
       ),

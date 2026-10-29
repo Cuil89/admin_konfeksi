@@ -267,13 +267,14 @@ class Sidebar extends StatelessWidget {
                   const SizedBox(height: 8),
 
                   // User Profile Bar
+                  // User Profile Bar (Role: Pemilik)
                   Row(
                     children: [
                       const InitialsAvatar(
-                        initials: 'AP',
+                        initials: 'PM',
                         size: 34,
-                        backgroundColor: AppColors.emerald100,
-                        textColor: AppColors.primary,
+                        backgroundColor: Color(0xFFFEF3C7),
+                        textColor: Color(0xFF92400E),
                       ),
                       const SizedBox(width: 10),
                       const Expanded(
@@ -281,19 +282,24 @@ class Sidebar extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Anita Putri',
+                              'H. Suryanto',
                               style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
                                 color: AppColors.textStrong,
                               ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                             Text(
-                              'Admin HR',
+                              'Pemilik',
                               style: TextStyle(
                                 fontSize: 11,
-                                color: AppColors.textMuted,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFFB45309),
                               ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ],
                         ),

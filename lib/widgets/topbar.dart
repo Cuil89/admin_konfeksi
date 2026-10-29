@@ -101,11 +101,47 @@ class Topbar extends StatelessWidget {
                 if (!isMobile) ...[
                   const SizedBox(width: 6),
                   const Text(
-                    'Data Anda terlindungi',
+                    'Data Terlindungi',
                     style: TextStyle(
                       fontSize: 11.5,
                       fontWeight: FontWeight.w600,
                       color: AppColors.primary700,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+
+          const SizedBox(width: 8),
+
+          // Role Badge: Pemilik
+          Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: isMobile ? 8 : 10,
+              vertical: 5,
+            ),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFEF3C7), // amber-100
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFFFDE68A), width: 0.8),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  AppIcons.shield,
+                  size: 14,
+                  color: Color(0xFF92400E), // amber-800
+                ),
+                if (!isMobile) ...[
+                  const SizedBox(width: 5),
+                  const Text(
+                    'Role: Pemilik',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF92400E),
                     ),
                   ),
                 ],

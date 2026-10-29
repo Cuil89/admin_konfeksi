@@ -30,6 +30,20 @@ class _AttendancePageState extends State<AttendancePage> {
 
         final presentCount = records.where((r) => r.status.isPresent).length;
         final absentCount = records.where((r) => !r.status.isPresent).length;
+        var totalDailyWageToday = 0;
+        for (final emp in employees) {
+          final rec = records.firstWhere(
+            (r) => r.employeeId == emp.id,
+            orElse: () => AttendanceRecord(
+              employeeId: emp.id,
+              day: Fmt.isoDay(_selectedDate),
+              status: AttendanceStatus.present,
+            ),
+          );
+          if (rec.status.isPresent) {
+            totalDailyWageToday += emp.effectiveDailyRate;
+          }
+        }
 
         return LayoutBuilder(
           builder: (context, constraints) {
@@ -117,6 +131,7 @@ class _AttendancePageState extends State<AttendancePage> {
                         runSpacing: 16,
                         children: [
                           _statBox('Hadir Hari Ini', '$presentCount karyawan', AppColors.primary, AppColors.emerald50),
+                          _statBox('Beban Upah Hari Ini', Fmt.rupiah(totalDailyWageToday), const Color(0xFF0F766E), const Color(0xFFCCFBF1)),
                           _statBox('Tidak Hadir / Izin', '$absentCount karyawan', AppColors.amber700, AppColors.amber50),
                           _statBox('Total Terdaftar', '${employees.length} karyawan', AppColors.textStrong, AppColors.slate100),
                         ],
@@ -130,7 +145,7 @@ class _AttendancePageState extends State<AttendancePage> {
                         child: SingleChildScrollView(
                           scrollDirection: Axis.horizontal,
                           child: ConstrainedBox(
-                            constraints: const BoxConstraints(minWidth: 800),
+                            constraints: const BoxConstraints(minWidth: 960),
                             child: DataTable(
                               headingRowColor: const WidgetStatePropertyAll(AppColors.tableHead),
                               headingTextStyle: AppText.tableHead,
@@ -140,7 +155,9 @@ class _AttendancePageState extends State<AttendancePage> {
                               columnSpacing: 24,
                               columns: const [
                                 DataColumn(label: Text('KARYAWAN')),
+                                DataColumn(label: Text('GAJI / HARI')),
                                 DataColumn(label: Text('STATUS KEHADIRAN')),
+                                DataColumn(label: Text('UPAH HARI INI')),
                                 DataColumn(label: Text('JAM MASUK')),
                                 DataColumn(label: Text('JAM KELUAR')),
                                 DataColumn(label: Text('UBAH STATUS')),
@@ -154,6 +171,7 @@ class _AttendancePageState extends State<AttendancePage> {
                                     status: AttendanceStatus.present,
                                   ),
                                 );
+                                final isEarned = record.status.isPresent;
 
                                 return DataRow(
                                   cells: [
@@ -174,7 +192,27 @@ class _AttendancePageState extends State<AttendancePage> {
                                         ],
                                       ),
                                     ),
+                                    DataCell(
+                                      Text(
+                                        Fmt.rupiah(emp.effectiveDailyRate),
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 13,
+                                          color: AppColors.textStrong,
+                                        ),
+                                      ),
+                                    ),
                                     DataCell(AttendanceStatusBadge(status: record.status)),
+                                    DataCell(
+                                      Text(
+                                        isEarned ? Fmt.rupiah(emp.effectiveDailyRate) : 'Rp0',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 13,
+                                          color: isEarned ? AppColors.primary700 : AppColors.textMuted,
+                                        ),
+                                      ),
+                                    ),
                                     DataCell(Text(record.checkIn ?? '—', style: AppText.body)),
                                     DataCell(Text(record.checkOut ?? '—', style: AppText.body)),
                                     DataCell(

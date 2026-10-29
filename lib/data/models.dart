@@ -45,7 +45,15 @@ enum ReimbursementStatus {
       .firstWhere((e) => e.name == v, orElse: () => ReimbursementStatus.pending);
 }
 
-const kDepartments = ['Teknologi', 'Produk', 'Pemasaran', 'Operasional'];
+const kDepartments = [
+  'Operasional',
+  'Produksi / Jahit',
+  'Potong (Cutting)',
+  'Finishing & QC',
+  'Teknologi',
+  'Produk',
+  'Pemasaran',
+];
 
 const kReimbursementCategories = [
   'Transportasi',
@@ -93,6 +101,9 @@ class Employee {
     this.active = true,
     this.paidAt,
     this.reviewNote,
+    this.dailyRate,
+    this.paymentMethod = 'Transfer Bank',
+    this.bankAccount,
   });
 
   final String id;
@@ -112,6 +123,14 @@ class Employee {
   final bool active;
   final DateTime? paidAt;
   final String? reviewNote;
+  final int? dailyRate;
+  final String paymentMethod;
+  final String? bankAccount;
+
+  /// Gaji absensi per hari (default: baseSalary / 25 hari kerja atau Rp150.000).
+  int get effectiveDailyRate => (dailyRate != null && dailyRate! > 0)
+      ? dailyRate!
+      : (baseSalary > 0 ? (baseSalary ~/ 25) : 150000);
 
   /// PPh 21 + BPJS + other (excluding kasbon/loan instalments).
   int get statutoryDeduction =>
@@ -140,6 +159,9 @@ class Employee {
     bool clearPaidAt = false,
     String? reviewNote,
     bool clearReviewNote = false,
+    int? dailyRate,
+    String? paymentMethod,
+    String? bankAccount,
   }) =>
       Employee(
         id: id,
@@ -159,6 +181,9 @@ class Employee {
         active: active ?? this.active,
         paidAt: clearPaidAt ? null : (paidAt ?? this.paidAt),
         reviewNote: clearReviewNote ? null : (reviewNote ?? this.reviewNote),
+        dailyRate: dailyRate ?? this.dailyRate,
+        paymentMethod: paymentMethod ?? this.paymentMethod,
+        bankAccount: bankAccount ?? this.bankAccount,
       );
 
   Map<String, Object?> toJson() => {
@@ -179,6 +204,9 @@ class Employee {
         'active': active,
         'paidAt': paidAt?.toIso8601String(),
         'reviewNote': reviewNote,
+        'dailyRate': dailyRate,
+        'paymentMethod': paymentMethod,
+        'bankAccount': bankAccount,
       };
 
   factory Employee.fromJson(Map<String, Object?> j) => Employee(
@@ -199,6 +227,9 @@ class Employee {
         active: j['active'] != false,
         paidAt: j['paidAt'] is String ? DateTime.tryParse(j['paidAt'] as String) : null,
         reviewNote: j['reviewNote'] is String ? j['reviewNote'] as String : null,
+        dailyRate: j['dailyRate'] != null ? _int(j['dailyRate']) : null,
+        paymentMethod: _str(j['paymentMethod'], 'Transfer Bank'),
+        bankAccount: j['bankAccount'] is String ? j['bankAccount'] as String : null,
       );
 }
 
@@ -222,6 +253,34 @@ class PayrollLine {
   /// Gaji bersih = gaji pokok + tunjangan − potongan
   int get net => gross - deduction;
   PayrollStatus get status => employee.status;
+}
+
+/// Calculated weekly payroll line with daily attendance wage and subtotal.
+@immutable
+class WeeklyPayrollLine {
+  const WeeklyPayrollLine({
+    required this.employee,
+    required this.weekNumber,
+    required this.startDate,
+    required this.endDate,
+    required this.daysPresent,
+    required this.dailyRate,
+    required this.dailyWageTotal,
+    required this.weeklyAllowance,
+    required this.weeklyLoanDeduction,
+    required this.subtotalNet,
+  });
+
+  final Employee employee;
+  final int weekNumber;
+  final DateTime startDate;
+  final DateTime endDate;
+  final int daysPresent;
+  final int dailyRate;
+  final int dailyWageTotal; // daysPresent * dailyRate
+  final int weeklyAllowance; // allowance / 4
+  final int weeklyLoanDeduction; // installment
+  final int subtotalNet; // dailyWageTotal + weeklyAllowance - weeklyLoanDeduction
 }
 
 // ---------------------------------------------------------------------------

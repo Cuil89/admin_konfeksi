@@ -93,6 +93,13 @@ class AppStore extends ChangeNotifier {
   int get periodYear => _periodYear;
   int get periodMonth => _periodMonth;
 
+  String _currentRole = 'Pemilik';
+  String get currentRole => _currentRole;
+  void setRole(String role) {
+    _currentRole = role;
+    notifyListeners();
+  }
+
   String get periodLabel => Fmt.monthYear(_periodYear, _periodMonth);
   DateTime get periodStart => DateTime(_periodYear, _periodMonth, 1);
   DateTime get periodEnd => DateTime(_periodYear, _periodMonth + 1, 0);
@@ -157,6 +164,82 @@ class AppStore extends ChangeNotifier {
   int get loanOutstanding => _loans.fold(0, (s, l) => s + l.remaining);
   int get loanDebtorCount =>
       _loans.map((l) => l.employeeId).toSet().length;
+
+  /// Kalkulasi sub total gaji per minggu berdasarkan kehadiran harian.
+  List<WeeklyPayrollLine> weeklyPayrollLines({int weekIndex = 1}) {
+    final year = _periodYear;
+    final month = _periodMonth;
+    final lastDayOfMonth = DateTime(year, month + 1, 0).day;
+
+    final int startDay;
+    final int endDay;
+    switch (weekIndex) {
+      case 1:
+        startDay = 1;
+        endDay = math.min(7, lastDayOfMonth);
+        break;
+      case 2:
+        startDay = 8;
+        endDay = math.min(14, lastDayOfMonth);
+        break;
+      case 3:
+        startDay = 15;
+        endDay = math.min(21, lastDayOfMonth);
+        break;
+      case 4:
+        startDay = 22;
+        endDay = math.min(28, lastDayOfMonth);
+        break;
+      case 5:
+      default:
+        startDay = 29;
+        endDay = lastDayOfMonth;
+        break;
+    }
+
+    final startDate = DateTime(year, month, startDay);
+    final endDate = DateTime(year, month, endDay);
+
+    final result = <WeeklyPayrollLine>[];
+    for (final emp in activeEmployees) {
+      var presentDays = 0;
+      for (var d = startDay; d <= endDay; d++) {
+        final dateKey = Fmt.isoDay(DateTime(year, month, d));
+        final rec = _attendance.firstWhere(
+          (r) => r.employeeId == emp.id && r.day == dateKey,
+          orElse: () => AttendanceRecord(
+            employeeId: emp.id,
+            day: dateKey,
+            status: AttendanceStatus.present,
+          ),
+        );
+        if (rec.status.isPresent) {
+          presentDays++;
+        }
+      }
+
+      final dailyRate = emp.effectiveDailyRate;
+      final dailyWageTotal = presentDays * dailyRate;
+      final weeklyAllowance = (emp.allowance / 4).round();
+      final totalLoanDed = loanDeductionFor(emp.id);
+      final weeklyLoanDed = (totalLoanDed / 4).round();
+      final subtotalNet = dailyWageTotal + weeklyAllowance - weeklyLoanDed;
+
+      result.add(WeeklyPayrollLine(
+        employee: emp,
+        weekNumber: weekIndex,
+        startDate: startDate,
+        endDate: endDate,
+        daysPresent: presentDays,
+        dailyRate: dailyRate,
+        dailyWageTotal: dailyWageTotal,
+        weeklyAllowance: weeklyAllowance,
+        weeklyLoanDeduction: weeklyLoanDed,
+        subtotalNet: subtotalNet,
+      ));
+    }
+    return result;
+  }
 
   List<AttendanceRecord> attendanceFor(DateTime day) {
     final key = Fmt.isoDay(day);
@@ -590,6 +673,9 @@ class AppStore extends ChangeNotifier {
     required DateTime joinDate,
     required int baseSalary,
     required int allowance,
+    int? dailyRate,
+    String paymentMethod = 'Transfer Bank',
+    String? bankAccount,
   }) {
     final n = sanitize(name, maxLength: 60);
     final em = sanitize(email, maxLength: 80).toLowerCase();
@@ -603,6 +689,9 @@ class AppStore extends ChangeNotifier {
     }
     _money(baseSalary, 'Gaji pokok', allowZero: false);
     _money(allowance, 'Tunjangan');
+    if (dailyRate != null && dailyRate > 0) {
+      _money(dailyRate, 'Gaji harian');
+    }
     final e = Employee(
       id: _nextId('ND', _employees.map((e) => e.id)),
       name: n,
@@ -618,6 +707,9 @@ class AppStore extends ChangeNotifier {
       pph21: 0,
       status: PayrollStatus.review,
       reviewNote: 'Karyawan baru – lengkapi PPh 21 sebelum dibayarkan.',
+      dailyRate: dailyRate,
+      paymentMethod: paymentMethod,
+      bankAccount: bankAccount != null ? sanitize(bankAccount, maxLength: 60) : null,
     );
     _employees.add(e);
     _commit('Karyawan ditambahkan', '${e.name} (${e.id})');
@@ -634,6 +726,9 @@ class AppStore extends ChangeNotifier {
     required DateTime joinDate,
     required int baseSalary,
     required int allowance,
+    int? dailyRate,
+    String? paymentMethod,
+    String? bankAccount,
   }) {
     final e = _require(id);
     final n = sanitize(name, maxLength: 60);
@@ -650,6 +745,9 @@ class AppStore extends ChangeNotifier {
     }
     _money(baseSalary, 'Gaji pokok', allowZero: false);
     _money(allowance, 'Tunjangan');
+    if (dailyRate != null && dailyRate > 0) {
+      _money(dailyRate, 'Gaji harian');
+    }
     if (salaryChanged &&
         baseSalary + allowance - e.statutoryDeduction - loanDeductionFor(id) < 0) {
       throw const ValidationException('Gaji baru lebih kecil dari total potongan.');
@@ -663,6 +761,9 @@ class AppStore extends ChangeNotifier {
       joinDate: joinDate,
       baseSalary: baseSalary,
       allowance: allowance,
+      dailyRate: dailyRate,
+      paymentMethod: paymentMethod ?? e.paymentMethod,
+      bankAccount: bankAccount != null ? sanitize(bankAccount, maxLength: 60) : e.bankAccount,
     ));
     _commit('Data karyawan diubah', '${e.name} (${e.id})');
   }
